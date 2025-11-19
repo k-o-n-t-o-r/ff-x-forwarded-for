@@ -115,7 +115,16 @@ export class ProfileElement extends LitElement {
                         ${this.profile.headers.map((header) => html`<li>${header}</li>`)}
                     </ul>
                     <h3>${chrome.i18n.getMessage(`profile_to_value`)}</h3>
-                    <p>${this.profile.value}</p>
+                    <p>
+                        ${this.profile.randomizeIp ? html`
+                            <strong>🔄 Randomizing:</strong> ${this.profile.value}
+                            <br>
+                            <small style="color: var(--color-primary-text-muted);">
+                                ${this.profile.useIPv6 ? 'IPv6' : 'IPv4'} •
+                                Updates every ${this._formatInterval(this.profile.randomizeInterval || 5)}
+                            </small>
+                        ` : this.profile.value}
+                    </p>
                     ${this.profile.domains.length ?
                         html`
                             <h3>${chrome.i18n.getMessage(`profile_for_domains_${this.profile.includeDomains ? "included" : "excluded"}`)}</h3>
@@ -147,8 +156,20 @@ export class ProfileElement extends LitElement {
                     `}
                 </footer>
             </section>
-            ${this.editing ? html`<profile-form .profileId=${this.profile.id} .name=${this.profile.name} .value=${this.profile.value} .headers=${this.profile.headers} .domains=${this.profile.domains} .includeDomains=${this.profile.includeDomains} @closeModal=${this._toggleModal}></profile-form>` : nothing }
+            ${this.editing ? html`<profile-form .profileId=${this.profile.id} .name=${this.profile.name} .value=${this.profile.value} .headers=${this.profile.headers} .domains=${this.profile.domains} .includeDomains=${this.profile.includeDomains} .randomizeIp=${this.profile.randomizeIp || false} .randomizeInterval=${this.profile.randomizeInterval || 5} .useIPv6=${this.profile.useIPv6 || false} @closeModal=${this._toggleModal}></profile-form>` : nothing }
         `
+    }
+
+    protected _formatInterval(seconds: number): string {
+        if (seconds < 60) {
+            return `${seconds}s`;
+        } else if (seconds < 3600) {
+            const minutes = Math.floor(seconds / 60);
+            return `${minutes}m`;
+        } else {
+            const hours = Math.floor(seconds / 3600);
+            return `${hours}h`;
+        }
     }
 
     protected _toggleEnabledStatus() {

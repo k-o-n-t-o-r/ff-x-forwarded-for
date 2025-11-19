@@ -1,5 +1,50 @@
 import ResourceType = chrome.declarativeNetRequest.ResourceType;
 
+const generateRandomIPv4 = (): string => {
+    // Generate a random IP address (avoiding reserved ranges)
+    // Using public IP ranges for more realistic spoofing
+    const octet1 = Math.floor(Math.random() * 223) + 1; // 1-223 (avoiding 224-255 multicast/reserved)
+    const octet2 = Math.floor(Math.random() * 256);
+    const octet3 = Math.floor(Math.random() * 256);
+    const octet4 = Math.floor(Math.random() * 254) + 1; // 1-254 (avoiding 0 and 255)
+
+    // Avoid some reserved ranges
+    if (octet1 === 10 || // 10.0.0.0/8
+        (octet1 === 172 && octet2 >= 16 && octet2 <= 31) || // 172.16.0.0/12
+        (octet1 === 192 && octet2 === 168) || // 192.168.0.0/16
+        octet1 === 127) { // 127.0.0.0/8 (loopback)
+        // Recursively generate a new IP if we hit a private range
+        return generateRandomIPv4();
+    }
+
+    return `${octet1}.${octet2}.${octet3}.${octet4}`;
+};
+
+const generateRandomIPv6 = (): string => {
+    // Generate a random IPv6 address (using public unicast range 2000::/3)
+    const hexChars = '0123456789abcdef';
+    const segments: string[] = [];
+
+    // First segment should start with 2 or 3 for global unicast (2000::/3)
+    const firstSegment = (Math.random() < 0.5 ? '2' : '3') +
+        Array.from({length: 3}, () => hexChars[Math.floor(Math.random() * 16)]).join('');
+    segments.push(firstSegment);
+
+    // Generate remaining 7 segments
+    for (let i = 0; i < 7; i++) {
+        const segment = Array.from({length: 4}, () =>
+            hexChars[Math.floor(Math.random() * 16)]
+        ).join('');
+        segments.push(segment);
+    }
+
+    return segments.join(':');
+};
+
+const generateRandomIp = (useIPv6: boolean = false): string => {
+    return useIPv6 ? generateRandomIPv6() : generateRandomIPv4();
+};
+
 interface Profile {
     id: number;
     name: string;
@@ -8,6 +53,9 @@ interface Profile {
     domains: string[];
     includeDomains: boolean;
     enabled: boolean;
+    randomizeIp?: boolean;
+    randomizeInterval?: number; // in seconds
+    useIPv6?: boolean;
 }
 
 interface LegacyV0Settings {
@@ -88,6 +136,22 @@ const updateFromSettings = async () => {
         }
         enabled = false;
     } else {
+        // Initialize random IPs for profiles that need them
+        let profilesUpdated = false;
+        const updatedProfiles = storedSettings.profiles.map(profile => {
+            if (profile.randomizeIp && (profile.value === "auto" || !profile.value)) {
+                profilesUpdated = true;
+                return { ...profile, value: generateRandomIp(profile.useIPv6 || false) };
+            }
+            return profile;
+        });
+
+        // Save updated profiles if any were initialized
+        if (profilesUpdated) {
+            await chrome.storage.sync.set({ profiles: updatedProfiles });
+            storedSettings.profiles = updatedProfiles;
+        }
+
         // Rebuild the dynamic rule set
         const rules: chrome.declarativeNetRequest.Rule[] = storedSettings.profiles
             .filter((profile) => profile.enabled)
@@ -97,6 +161,47 @@ const updateFromSettings = async () => {
         enabled = true;
     }
     await updateIcon(enabled);
+};
+
+const updateRandomizedProfiles = async () => {
+    const storedSettings = await chrome.storage.sync.get(["profiles", "lastRandomizeTime"]) as {
+        profiles?: Profile[],
+        lastRandomizeTime?: { [key: number]: number }
+    };
+
+    if (!storedSettings?.profiles) {
+        return;
+    }
+
+    const currentTime = Date.now() / 1000; // Convert to seconds
+    const lastRandomizeTime = storedSettings.lastRandomizeTime || {};
+    let profilesUpdated = false;
+    let timeUpdated = false;
+
+    // Generate new random IPs for profiles whose interval has elapsed
+    const updatedProfiles = storedSettings.profiles.map(profile => {
+        if (profile.randomizeIp && profile.enabled) {
+            const interval = profile.randomizeInterval || 5;
+            const lastUpdate = lastRandomizeTime[profile.id] || 0;
+
+            // Check if enough time has passed
+            if (currentTime - lastUpdate >= interval) {
+                profilesUpdated = true;
+                timeUpdated = true;
+                lastRandomizeTime[profile.id] = currentTime;
+                return { ...profile, value: generateRandomIp(profile.useIPv6 || false) };
+            }
+        }
+        return profile;
+    });
+
+    // Save updated profiles and timestamps
+    if (profilesUpdated) {
+        await chrome.storage.sync.set({ profiles: updatedProfiles });
+    }
+    if (timeUpdated) {
+        await chrome.storage.sync.set({ lastRandomizeTime });
+    }
 };
 
 const updateIcon = async (enabled?: boolean)=>  {
@@ -170,3 +275,14 @@ chrome.runtime.onStartup.addListener(updateIcon);
 
 // Update the icon & DNR rules when storage has changed
 chrome.storage.sync.onChanged.addListener(updateFromSettings);
+
+// Set up alarm for randomized IP updates (every 5 seconds)
+const RANDOMIZE_ALARM = "randomize-ip";
+chrome.alarms.create(RANDOMIZE_ALARM, { periodInMinutes: 1/12 }); // 5 seconds
+
+// Handle alarm events
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === RANDOMIZE_ALARM) {
+        updateRandomizedProfiles();
+    }
+});

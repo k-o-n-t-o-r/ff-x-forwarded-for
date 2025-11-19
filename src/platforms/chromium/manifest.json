@@ -25,7 +25,8 @@
   },
   "permissions": [
     "storage",
-    "declarativeNetRequestWithHostAccess"
+    "declarativeNetRequestWithHostAccess",
+    "alarms"
   ],
   "host_permissions": [
     "<all_urls>"

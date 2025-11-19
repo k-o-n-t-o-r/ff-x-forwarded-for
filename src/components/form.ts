@@ -2,6 +2,20 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import headers from "../headers";
 
+const validateIPv4 = (ip: string): boolean => {
+    const ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return ipv4Regex.test(ip);
+};
+
+const validateIPv6 = (ip: string): boolean => {
+    const ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
+    return ipv6Regex.test(ip);
+};
+
+const validateIP = (ip: string): boolean => {
+    return validateIPv4(ip) || validateIPv6(ip);
+};
+
 @customElement('profile-form')
 export class ProfileFormElement extends LitElement {
     static override styles = css`
@@ -84,6 +98,15 @@ export class ProfileFormElement extends LitElement {
     @property()
     value: string = "";
 
+    @property()
+    randomizeIp: boolean = false;
+
+    @property()
+    randomizeInterval: number = 5; // in seconds
+
+    @property()
+    useIPv6: boolean = false;
+
     protected _headers: string[] = [];
     @property()
     set headers(headers: string|string[]) {
@@ -141,10 +164,37 @@ export class ProfileFormElement extends LitElement {
                     </div>
                     <div class="form-row ${this._errors.value ? "form-error" : ""}">
                         <label for="value">${chrome.i18n.getMessage("form_value_label")}</label>
-                        <input .value="${this.value}" @change=${this._handleInput} id="value" placeholder="127.0.0.1" type="text" class="${this._errors.value ? "form-error" : ""}" required>
+                        <input .value="${this.value}" @change=${this._handleInput} id="value" placeholder="127.0.0.1" type="text" class="${this._errors.value ? "form-error" : ""}" ?required=${!this.randomizeIp} ?disabled=${this.randomizeIp}>
                         ${this._errors.value ? html`<span class="error-text">${this._errors.value}</span>` : nothing }
                         <span class="help-text">${chrome.i18n.getMessage("form_value_help")}</span>
                     </div>
+                    <div class="form-row">
+                        <label>
+                            <input type="checkbox" .checked="${this.randomizeIp}" @change=${this._handleCheckbox} id="randomizeIp">
+                            Randomize IP automatically
+                        </label>
+                        <span class="help-text">When enabled, the IP value above will be ignored and a random public IP address will be generated automatically.</span>
+                    </div>
+                    ${this.randomizeIp ? html`
+                        <div class="form-row">
+                            <label for="randomizeInterval">Randomization Interval</label>
+                            <select .value="${this.randomizeInterval}" @change=${this._handleInput} id="randomizeInterval">
+                                <option value="5">Every 5 seconds</option>
+                                <option value="30">Every 30 seconds</option>
+                                <option value="60">Every 1 minute</option>
+                                <option value="300">Every 5 minutes</option>
+                                <option value="600">Every 10 minutes</option>
+                            </select>
+                            <span class="help-text">How often to generate a new random IP address.</span>
+                        </div>
+                        <div class="form-row">
+                            <label>
+                                <input type="checkbox" .checked="${this.useIPv6}" @change=${this._handleCheckbox} id="useIPv6">
+                                Use IPv6 instead of IPv4
+                            </label>
+                            <span class="help-text">Generate random IPv6 addresses instead of IPv4.</span>
+                        </div>
+                    ` : nothing}
                     <div class="form-row ${this._errors.headers ? "form-error" : ""}">
                         <label for="headers">${chrome.i18n.getMessage("form_headers_label")}</label>
                         <select @change=${this._handleInput} id="headers" class="${this._errors.headers ? "form-error" : ""}" multiple required>
@@ -185,10 +235,22 @@ export class ProfileFormElement extends LitElement {
             this.headers = Array.from((event.target as HTMLSelectElement).selectedOptions, option => option.value);
         } else if(["name", "value", "domains"].includes(id)) {
             this[id] = value.trim();
+            // Validate IP address when value changes
+            if(id === "value" && value.trim() && !this.randomizeIp) {
+                const errors = Object.assign({}, this._errors);
+                if(!validateIP(value.trim())) {
+                    errors[id] = "Please enter a valid IPv4 or IPv6 address";
+                } else {
+                    delete errors[id];
+                }
+                this._errors = errors;
+            }
         } else if(id === "allDomains") {
             this.allDomains = (value === "true");
         } else if (id === "includeDomains") {
             this.includeDomains = (value === "true");
+        } else if (id === "randomizeInterval") {
+            this.randomizeInterval = parseInt(value, 10);
         }
 
         if(required) {
@@ -199,6 +261,21 @@ export class ProfileFormElement extends LitElement {
                 if(!errors[id]) { errors[id] = chrome.i18n.getMessage(`error_${id}_required`); }
             }
             this._errors = errors;
+        }
+    }
+
+    protected _handleCheckbox(event: Event) {
+        const target = event.target as HTMLInputElement;
+        if (target.id === "randomizeIp") {
+            this.randomizeIp = target.checked;
+            // Clear value error if randomizeIp is enabled
+            if (this.randomizeIp && this._errors.value) {
+                const errors = Object.assign({}, this._errors);
+                delete errors.value;
+                this._errors = errors;
+            }
+        } else if (target.id === "useIPv6") {
+            this.useIPv6 = target.checked;
         }
     }
 
@@ -213,21 +290,30 @@ export class ProfileFormElement extends LitElement {
 
         const profile : Partial<Profile> = {
             name: this.name,
-            value: this.value,
+            value: this.randomizeIp ? "auto" : this.value, // Placeholder, will be replaced by service worker
             headers: this.headers,
             // @ts-ignore
             includeDomains: this.includeDomains,
             domains: this.domains,
+            randomizeIp: this.randomizeIp,
+            randomizeInterval: this.randomizeInterval,
+            useIPv6: this.useIPv6,
         }
 
         let errors: { [key: string]: string } = {};
 
-        const required = ["name", "value", "headers"];
+        // Value is only required if randomizeIp is disabled
+        const required = this.randomizeIp ? ["name", "headers"] : ["name", "value", "headers"];
         required.forEach((field) => {
             if(!profile[field] || !profile[field].length) {
                 errors[field] = chrome.i18n.getMessage(`error_${field}_required`);
             }
         });
+
+        // Validate IP address if not randomizing
+        if (!this.randomizeIp && this.value && !validateIP(this.value)) {
+            errors.value = "Please enter a valid IPv4 or IPv6 address";
+        }
 
         if(!this.allDomains && (!profile.domains || !profile.domains.length)) {
             errors.domains = chrome.i18n.getMessage(`error_domains_required`);
