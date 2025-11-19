@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { safeHeaders, advancedHeaders } from "../headers";
+import { safeHeaders, vendorHeaders, advancedHeaders, esotericHeaders } from "../headers";
 
 const validateIPv4 = (ip: string): boolean => {
     const ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
@@ -167,6 +167,12 @@ export class ProfileFormElement extends LitElement {
     @property()
     useIPv6: boolean = false;
 
+    @property()
+    randomizeHeaders: boolean = false;
+
+    @property()
+    randomHeaderCount: number = 0; // 0 means random count
+
     protected _headers: string[] = [];
     @property()
     set headers(headers: string|string[]) {
@@ -235,6 +241,29 @@ export class ProfileFormElement extends LitElement {
                         </label>
                         <span class="help-text">When enabled, the IP value above will be ignored and a random public IP address will be generated automatically.</span>
                     </div>
+                    <div class="form-row">
+                        <label>
+                            <input type="checkbox" .checked="${this.randomizeHeaders}" @change=${this._handleCheckbox} id="randomizeHeaders">
+                            Randomize which headers are sent
+                        </label>
+                        <span class="help-text">When enabled, a random subset of the selected headers below will be sent with each update. This makes your requests less predictable.</span>
+                    </div>
+                    ${this.randomizeHeaders ? html`
+                        <div class="form-row">
+                            <label for="randomHeaderCount">How many headers to send</label>
+                            <select .value="${this.randomHeaderCount}" @change=${this._handleInput} id="randomHeaderCount">
+                                <option value="0">Random (1 to all)</option>
+                                <option value="1">Exactly 1</option>
+                                <option value="2">Exactly 2</option>
+                                <option value="3">Exactly 3</option>
+                                <option value="4">Exactly 4</option>
+                                <option value="5">Exactly 5</option>
+                                <option value="10">Exactly 10</option>
+                                <option value="999">All selected</option>
+                            </select>
+                            <span class="help-text">How many headers to randomly select and send. "Random" picks a different count each time.</span>
+                        </div>
+                    ` : nothing}
                     ${this.randomizeIp ? html`
                         <div class="form-row">
                             <label for="randomizeInterval">Randomization Interval</label>
@@ -283,6 +312,28 @@ export class ProfileFormElement extends LitElement {
                             </div>
                             <div class="headers-section">
                                 <div class="headers-section-title">
+                                    <span>Vendor-Specific Headers (CDN/Provider)</span>
+                                    <div class="headers-section-actions">
+                                        <button type="button" @click=${() => this._selectAllHeaders('vendor', true)}>Select All</button>
+                                        <button type="button" @click=${() => this._selectAllHeaders('vendor', false)}>Deselect All</button>
+                                    </div>
+                                </div>
+                                <div class="headers-grid">
+                                    ${vendorHeaders.map((header) => html`
+                                        <div class="header-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                id="header-${header}"
+                                                .checked=${this.headers.includes(header)}
+                                                @change=${(e: Event) => this._handleHeaderCheckbox(header, (e.target as HTMLInputElement).checked)}
+                                            >
+                                            <label for="header-${header}">${header}</label>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                            <div class="headers-section">
+                                <div class="headers-section-title">
                                     <span>Advanced Headers (May break sites)</span>
                                     <div class="headers-section-actions">
                                         <button type="button" @click=${() => this._selectAllHeaders('advanced', true)}>Select All</button>
@@ -291,6 +342,28 @@ export class ProfileFormElement extends LitElement {
                                 </div>
                                 <div class="headers-grid">
                                     ${advancedHeaders.map((header) => html`
+                                        <div class="header-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                id="header-${header}"
+                                                .checked=${this.headers.includes(header)}
+                                                @change=${(e: Event) => this._handleHeaderCheckbox(header, (e.target as HTMLInputElement).checked)}
+                                            >
+                                            <label for="header-${header}">${header}</label>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                            <div class="headers-section">
+                                <div class="headers-section-title">
+                                    <span>Esoteric Headers (Rare/Legacy)</span>
+                                    <div class="headers-section-actions">
+                                        <button type="button" @click=${() => this._selectAllHeaders('esoteric', true)}>Select All</button>
+                                        <button type="button" @click=${() => this._selectAllHeaders('esoteric', false)}>Deselect All</button>
+                                    </div>
+                                </div>
+                                <div class="headers-grid">
+                                    ${esotericHeaders.map((header) => html`
                                         <div class="header-checkbox">
                                             <input
                                                 type="checkbox"
@@ -350,8 +423,14 @@ export class ProfileFormElement extends LitElement {
         }
     }
 
-    protected _selectAllHeaders(section: 'safe' | 'advanced', select: boolean) {
-        const headerList = section === 'safe' ? safeHeaders : advancedHeaders;
+    protected _selectAllHeaders(section: 'safe' | 'vendor' | 'advanced' | 'esoteric', select: boolean) {
+        let headerList: string[];
+        switch (section) {
+            case 'safe': headerList = safeHeaders; break;
+            case 'vendor': headerList = vendorHeaders; break;
+            case 'advanced': headerList = advancedHeaders; break;
+            case 'esoteric': headerList = esotericHeaders; break;
+        }
 
         if (select) {
             // Add all headers from this section
@@ -390,6 +469,8 @@ export class ProfileFormElement extends LitElement {
             this.includeDomains = (value === "true");
         } else if (id === "randomizeInterval") {
             this.randomizeInterval = parseInt(value, 10);
+        } else if (id === "randomHeaderCount") {
+            this.randomHeaderCount = parseInt(value, 10);
         }
 
         if(required) {
@@ -415,6 +496,8 @@ export class ProfileFormElement extends LitElement {
             }
         } else if (target.id === "useIPv6") {
             this.useIPv6 = target.checked;
+        } else if (target.id === "randomizeHeaders") {
+            this.randomizeHeaders = target.checked;
         }
     }
 
@@ -437,6 +520,8 @@ export class ProfileFormElement extends LitElement {
             randomizeIp: this.randomizeIp,
             randomizeInterval: this.randomizeInterval,
             useIPv6: this.useIPv6,
+            randomizeHeaders: this.randomizeHeaders,
+            randomHeaderCount: this.randomHeaderCount,
         }
 
         let errors: { [key: string]: string } = {};

@@ -117,7 +117,7 @@ export class ActionScreenElement extends LitElement {
                                 >
                                 <span class="profile-name">${profile.name}</span>
                             </label>
-                            ${profile.randomizeIp ? html`<span class="profile-status">🔄</span>` : ''}
+                            ${profile.randomizeIp ? html`<span class="profile-status">R</span>` : ''}
                         </div>
                     `)}
                 </div>

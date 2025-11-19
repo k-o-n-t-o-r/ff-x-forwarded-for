@@ -54,6 +54,9 @@ interface Profile {
     randomizeIp?: boolean;
     randomizeInterval?: number; // in seconds
     useIPv6?: boolean;
+    randomizeHeaders?: boolean;
+    randomHeaderCount?: number; // How many headers to send when randomizing
+    _activeHeaders?: string[]; // Internal: currently active subset of headers
 }
 
 interface LegacyV0Settings {
@@ -62,13 +65,34 @@ interface LegacyV0Settings {
     headers: string[],
 }
 
+const getRandomSubset = <T,>(array: T[], count?: number): T[] => {
+    if (array.length === 0) return [];
+
+    let actualCount: number;
+
+    if (count !== undefined && count > 0) {
+        // Use specified count, but don't exceed array length
+        actualCount = Math.min(count, array.length);
+    } else {
+        // Random count between 1 and array length
+        actualCount = Math.floor(Math.random() * array.length) + 1;
+    }
+
+    // Shuffle and take the first 'actualCount' items
+    const shuffled = [...array].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, actualCount);
+};
+
 const convertProfileToRule = (profile: Profile): chrome.declarativeNetRequest.Rule => {
+    // Use active headers if header randomization is enabled, otherwise use all headers
+    const headersToUse = profile._activeHeaders || profile.headers;
+
     const rule: chrome.declarativeNetRequest.Rule = {
         id: profile.id,
         priority: profile.id,
         action: {
             type: "modifyHeaders" as chrome.declarativeNetRequest.RuleActionType,
-            requestHeaders: profile.headers.map((header) => {
+            requestHeaders: headersToUse.map((header) => {
                 return {
                     header: header.toLowerCase(),
                     operation: "set" as chrome.declarativeNetRequest.HeaderOperation,
@@ -174,9 +198,11 @@ const updateRandomizedProfiles = async () => {
     let profilesUpdated = false;
     let timeUpdated = false;
 
-    // Generate new random IPs for profiles whose interval has elapsed
+    // Generate new random IPs/headers for profiles whose interval has elapsed
     const updatedProfiles = storedSettings.profiles.map(profile => {
-        if (profile.randomizeIp && profile.enabled) {
+        const shouldRandomize = (profile.randomizeIp || profile.randomizeHeaders) && profile.enabled;
+
+        if (shouldRandomize) {
             const interval = profile.randomizeInterval || 5;
             const lastUpdate = lastRandomizeTime[profile.id] || 0;
 
@@ -185,7 +211,20 @@ const updateRandomizedProfiles = async () => {
                 profilesUpdated = true;
                 timeUpdated = true;
                 lastRandomizeTime[profile.id] = currentTime;
-                return { ...profile, value: generateRandomIp(profile.useIPv6 || false) };
+
+                const updates: Partial<Profile> = {};
+
+                // Randomize IP if enabled
+                if (profile.randomizeIp) {
+                    updates.value = generateRandomIp(profile.useIPv6 || false);
+                }
+
+                // Randomize headers if enabled
+                if (profile.randomizeHeaders && profile.headers.length > 0) {
+                    updates._activeHeaders = getRandomSubset(profile.headers, profile.randomHeaderCount);
+                }
+
+                return { ...profile, ...updates };
             }
         }
         return profile;
@@ -193,7 +232,7 @@ const updateRandomizedProfiles = async () => {
 
     // Save updated profiles and timestamps
     if (profilesUpdated) {
-        await chrome.storage.sync.set({ profiles: updatedProfiles });
+        await chrome.storage.sync.set({ profiles: updatedProfiles, _updating: true });
     }
     if (timeUpdated) {
         await chrome.storage.sync.set({ lastRandomizeTime });

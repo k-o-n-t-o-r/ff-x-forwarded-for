@@ -111,13 +111,19 @@ export class ProfileElement extends LitElement {
                 </header>
                 <main>
                     <h3>${chrome.i18n.getMessage(`profile_set_headers`)}</h3>
+                    ${this.profile.randomizeHeaders ? html`
+                        <p style="font-size: 0.85rem; color: var(--color-primary-text-muted); margin: 0.25rem 0 0.5rem 0;">
+                            Randomizing (${this.profile._activeHeaders?.length || 0} of ${this.profile.headers.length} active)
+                            ${this.profile.randomHeaderCount ? ` • Sending exactly ${this.profile.randomHeaderCount}` : ' • Random count'}
+                        </p>
+                    ` : nothing}
                     <ul>
                         ${this.profile.headers.map((header) => html`<li>${header}</li>`)}
                     </ul>
                     <h3>${chrome.i18n.getMessage(`profile_to_value`)}</h3>
                     <p>
                         ${this.profile.randomizeIp ? html`
-                            <strong>🔄 Randomizing:</strong> ${this.profile.value}
+                            <strong>Randomizing:</strong> ${this.profile.value}
                             <br>
                             <small style="color: var(--color-primary-text-muted);">
                                 ${this.profile.useIPv6 ? 'IPv6' : 'IPv4'} •
@@ -156,7 +162,7 @@ export class ProfileElement extends LitElement {
                     `}
                 </footer>
             </section>
-            ${this.editing ? html`<profile-form .profileId=${this.profile.id} .name=${this.profile.name} .value=${this.profile.value} .headers=${this.profile.headers} .domains=${this.profile.domains} .includeDomains=${this.profile.includeDomains} .randomizeIp=${this.profile.randomizeIp || false} .randomizeInterval=${this.profile.randomizeInterval || 5} .useIPv6=${this.profile.useIPv6 || false} @closeModal=${this._toggleModal}></profile-form>` : nothing }
+            ${this.editing ? html`<profile-form .profileId=${this.profile.id} .name=${this.profile.name} .value=${this.profile.value} .headers=${this.profile.headers} .domains=${this.profile.domains} .includeDomains=${this.profile.includeDomains} .randomizeIp=${this.profile.randomizeIp || false} .randomizeInterval=${this.profile.randomizeInterval || 5} .useIPv6=${this.profile.useIPv6 || false} .randomizeHeaders=${this.profile.randomizeHeaders || false} .randomHeaderCount=${this.profile.randomHeaderCount || 0} @closeModal=${this._toggleModal}></profile-form>` : nothing }
         `
     }
 

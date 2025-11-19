@@ -3,78 +3,57 @@ const safeHeaders: string[] = [
     "X-Forwarded-For",
     "X-Real-IP",
     "X-Originating-IP",
-    "CF-Connecting-IP",
     "True-Client-IP",
-    "X-Client-IP",
+    "Client-IP",
+];
+
+// Vendor-specific headers - CDN and provider specific
+const vendorHeaders: string[] = [
+    "CF-Connecting-IP",              // Cloudflare
+    "Ali-CDN-Real-IP",               // Alibaba CDN
+    "Cdn-Src-IP",                    // Generic CDN
+    "Cdn-Real-IP",                   // Generic CDN
+    "WL-Proxy-Client-IP",            // WebLogic
+    "Proxy-Client-IP",               // Generic proxy
+    "X-ProxyMesh-IP",                // ProxyMesh service
+    "X-ProxyUser-IP",                // Proxy user IP
+    "X-BlueCoat-Via",                // Blue Coat proxy
 ];
 
 // Advanced headers - may break functionality on some sites
 const advancedHeaders: string[] = [
-    // X-Forwarded variants
     "X-Forwarded-For-Original",
     "X-Forwarded",
     "X-Forwarded-By",
     "X-Forwarded-Server",
     "X-Forwarded-Host",
     "X-Forward-For",
-
-    // X-Real/Original IP headers
     "X-Original-IP",
     "X-Original-Remote-Addr",
     "X-Original-Host",
     "X-Original-Url",
     "X-Originally-Forwarded-For",
-
-    // X-Remote headers
     "X-Remote-IP",
     "X-Remote-Addr",
-
-    // X-Client/Cluster headers
     "X-Cluster-Client-IP",
-
-    // X-Proxy headers
-    "X-ProxyMesh-IP",
-    "X-ProxyUser-IP",
-
-    // X-From headers
     "X-From-IP",
     "X-From",
-
-    // X-True-Client headers
     "X-True-Client-IP",
-
-    // Other X- headers
     "X-Backend-Host",
-    "X-BlueCoat-Via",
-    "X-Cache-Info",
     "X-Gateway-Host",
     "X-Host",
     "X-Ip",
-
-    // Standard Forwarded headers
+    "X-Cache-Info",
     "Forwarded",
     "Forwarded-For",
-
-    // Client-IP headers
-    "Client-IP",
-
-    // CDN headers
-    "Ali-CDN-Real-IP",
-    "Cdn-Src-IP",
-    "Cdn-Real-IP",
-
-    // Proxy headers
-    "WL-Proxy-Client-IP",
-    "Proxy-Client-IP",
-
-    // Source/Via headers
     "Source-IP",
     "Via",
-
-    // Z-Forwarded headers
     "Z-Forwarded-For",
+];
 
-    // HTTP-prefixed headers (common in some proxy configurations)
+// Esoteric headers - rare, unusual, or legacy
+const esotericHeaders: string[] = [
+    // HTTP-prefixed (CGI-style)
     "HTTP-CLIENT-IP",
     "HTTP-FORWARDED-FOR-IP",
     "HTTP-PC-REMOTE-ADDR",
@@ -84,25 +63,27 @@ const advancedHeaders: string[] = [
     "HTTP-X-IMFORWARDS",
     "HTTP-XROXY-CONNECTION",
 
-    // CGI-style variants (underscores - note: these are converted to hyphens in HTTP)
+    // Uppercase variants
     "COMING_FROM",
     "CONNECT_VIA_IP",
     "FORWARD_FOR",
     "PC_REMOTE_ADDR",
+    "REMOTE_ADDR",
+
+    // Proxy-related
     "PRAGMA",
     "PROXY_AUTHORIZATION",
     "PROXY_CONNECTION",
     "PROXY",
-    "REMOTE_ADDR",
 
-    // Other variants
+    // Unusual variants
     "XONNECTION",
     "XPROXY",
     "XROXY_CONNECTION",
     "ZCACHE_CONTROL",
 ];
 
-const headers: string[] = [...safeHeaders, ...advancedHeaders];
+const headers: string[] = [...safeHeaders, ...vendorHeaders, ...advancedHeaders, ...esotericHeaders];
 
 export default headers;
-export { safeHeaders, advancedHeaders };
+export { safeHeaders, vendorHeaders, advancedHeaders, esotericHeaders };
