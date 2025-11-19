@@ -82,16 +82,18 @@ export class ListProfilesElement extends LitElement {
         super.connectedCallback();
 
         chrome.storage.sync.get(["enabled", "profiles"], ((settings) => {
-            const profiles = settings.profiles as Profile[];
-            if(Array.isArray(profiles)) {
-                this._profiles = produce(this._profiles, (draftState) => {
-                    profiles.forEach((profile) => {
-                        draftState.push(profile);
+            if (settings) {
+                const profiles = settings.profiles as Profile[];
+                if(Array.isArray(profiles)) {
+                    this._profiles = produce(this._profiles, (draftState) => {
+                        profiles.forEach((profile) => {
+                            draftState.push(profile);
+                        });
                     });
-                });
-            }
+                }
 
-            this._enabled = settings.enabled;
+                this._enabled = settings.enabled || false;
+            }
         }));
     }
 

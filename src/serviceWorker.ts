@@ -1,5 +1,3 @@
-import ResourceType = chrome.declarativeNetRequest.ResourceType;
-
 const generateRandomIPv4 = (): string => {
     // Generate a random IP address (avoiding reserved ranges)
     // Using public IP ranges for more realistic spoofing
@@ -69,34 +67,31 @@ const convertProfileToRule = (profile: Profile): chrome.declarativeNetRequest.Ru
         id: profile.id,
         priority: profile.id,
         action: {
-            type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+            type: "modifyHeaders" as chrome.declarativeNetRequest.RuleActionType,
             requestHeaders: profile.headers.map((header) => {
                 return {
                     header: header.toLowerCase(),
-                    operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+                    operation: "set" as chrome.declarativeNetRequest.HeaderOperation,
                     value: profile.value,
                 }
             }),
         },
         condition: {
             resourceTypes: [
-                ResourceType.MAIN_FRAME,
-                ResourceType.SUB_FRAME,
-                ResourceType.STYLESHEET,
-                ResourceType.SCRIPT,
-                ResourceType.IMAGE,
-                ResourceType.FONT,
-                ResourceType.OBJECT,
-                ResourceType.XMLHTTPREQUEST,
-                ResourceType.PING,
-                ResourceType.CSP_REPORT,
-                ResourceType.MEDIA,
-                ResourceType.WEBSOCKET,
-                ResourceType.OTHER,
-                ResourceType.MEDIA,
-                "webtransport" as ResourceType,
-                "webbundle" as ResourceType
-            ],
+                "main_frame",
+                "sub_frame",
+                "stylesheet",
+                "script",
+                "image",
+                "font",
+                "object",
+                "xmlhttprequest",
+                "ping",
+                "csp_report",
+                "media",
+                "websocket",
+                "other"
+            ] as chrome.declarativeNetRequest.ResourceType[],
         },
     };
 
@@ -126,11 +121,15 @@ const updateDeclarativeRules = ({ addRules = [], removeRules = [] }: { addRules?
 }
 
 const updateFromSettings = async () => {
+    console.log("[XFF] updateFromSettings called");
     const storedSettings = await chrome.storage.sync.get(["enabled", "profiles"]) as { enabled?: boolean, profiles?: Profile[] };
+    console.log("[XFF] storedSettings:", storedSettings);
     const oldRules = await chrome.declarativeNetRequest.getDynamicRules();
+    console.log("[XFF] oldRules:", oldRules);
     let enabled: boolean;
 
     if(!storedSettings || !storedSettings.enabled || !storedSettings.profiles) {
+        console.log("[XFF] Extension disabled or no profiles, removing rules");
         if(oldRules.length) {
             updateDeclarativeRules({ removeRules: oldRules });
         }
@@ -141,14 +140,18 @@ const updateFromSettings = async () => {
         const updatedProfiles = storedSettings.profiles.map(profile => {
             if (profile.randomizeIp && (profile.value === "auto" || !profile.value)) {
                 profilesUpdated = true;
-                return { ...profile, value: generateRandomIp(profile.useIPv6 || false) };
+                const newIp = generateRandomIp(profile.useIPv6 || false);
+                console.log(`[XFF] Initializing random IP for profile ${profile.id}: ${newIp}`);
+                return { ...profile, value: newIp };
             }
             return profile;
         });
 
-        // Save updated profiles if any were initialized
+        // Save updated profiles if any were initialized (but prevent recursive updates)
         if (profilesUpdated) {
-            await chrome.storage.sync.set({ profiles: updatedProfiles });
+            console.log("[XFF] Saving initialized random IPs");
+            // Use a flag to prevent recursive updates
+            await chrome.storage.sync.set({ profiles: updatedProfiles, _updating: true });
             storedSettings.profiles = updatedProfiles;
         }
 
@@ -157,6 +160,7 @@ const updateFromSettings = async () => {
             .filter((profile) => profile.enabled)
             .map(convertProfileToRule);
 
+        console.log("[XFF] Creating rules:", rules);
         updateDeclarativeRules({addRules: rules, removeRules: oldRules});
         enabled = true;
     }
@@ -274,7 +278,17 @@ chrome.runtime.onInstalled.addListener(async ({ reason, previousVersion }) => {
 chrome.runtime.onStartup.addListener(updateIcon);
 
 // Update the icon & DNR rules when storage has changed
-chrome.storage.sync.onChanged.addListener(updateFromSettings);
+chrome.storage.sync.onChanged.addListener((changes) => {
+    console.log("[XFF] Storage changed:", changes);
+    // Prevent recursive updates when we're just updating the profiles
+    if (changes._updating) {
+        console.log("[XFF] Skipping recursive update");
+        // Clean up the flag
+        chrome.storage.sync.remove('_updating');
+        return;
+    }
+    updateFromSettings();
+});
 
 // Set up alarm for randomized IP updates (every 5 seconds)
 const RANDOMIZE_ALARM = "randomize-ip";

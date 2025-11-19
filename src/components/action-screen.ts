@@ -76,8 +76,13 @@ export class ActionScreenElement extends LitElement {
         super.connectedCallback();
 
         chrome.storage.sync.get(["enabled", "profiles"], ((settings) => {
-            this._enabled = settings.enabled;
-            this._profiles = settings.profiles;
+            if (settings) {
+                this._enabled = settings.enabled || false;
+                this._profiles = settings.profiles || [];
+            } else {
+                this._enabled = false;
+                this._profiles = [];
+            }
         }));
     }
 
