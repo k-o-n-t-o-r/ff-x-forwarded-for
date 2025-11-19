@@ -1,6 +1,16 @@
-const headers: string[] = [
-    // Standard X-Forwarded headers
+// Safe headers - commonly used, unlikely to break functionality
+const safeHeaders: string[] = [
     "X-Forwarded-For",
+    "X-Real-IP",
+    "X-Originating-IP",
+    "CF-Connecting-IP",
+    "True-Client-IP",
+    "X-Client-IP",
+];
+
+// Advanced headers - may break functionality on some sites
+const advancedHeaders: string[] = [
+    // X-Forwarded variants
     "X-Forwarded-For-Original",
     "X-Forwarded",
     "X-Forwarded-By",
@@ -9,12 +19,10 @@ const headers: string[] = [
     "X-Forward-For",
 
     // X-Real/Original IP headers
-    "X-Real-IP",
     "X-Original-IP",
     "X-Original-Remote-Addr",
     "X-Original-Host",
     "X-Original-Url",
-    "X-Originating-IP",
     "X-Originally-Forwarded-For",
 
     // X-Remote headers
@@ -47,15 +55,13 @@ const headers: string[] = [
     "Forwarded",
     "Forwarded-For",
 
-    // True-Client/Client-IP headers
-    "True-Client-IP",
+    // Client-IP headers
     "Client-IP",
 
     // CDN headers
     "Ali-CDN-Real-IP",
     "Cdn-Src-IP",
     "Cdn-Real-IP",
-    "CF-Connecting-IP",
 
     // Proxy headers
     "WL-Proxy-Client-IP",
@@ -64,7 +70,6 @@ const headers: string[] = [
     // Source/Via headers
     "Source-IP",
     "Via",
-    "VIA",
 
     // Z-Forwarded headers
     "Z-Forwarded-For",
@@ -79,30 +84,10 @@ const headers: string[] = [
     "HTTP-X-IMFORWARDS",
     "HTTP-XROXY-CONNECTION",
 
-    // Underscore variants (used by some proxies/load balancers)
-    "X_CLUSTER_CLIENT_IP",
-    "X_COMING_FROM",
-    "X_DELEGATE_REMOTE_HOST",
-    "X_FORWARDED_FOR_IP",
-    "X_FORWARDED_FOR",
-    "X_FORWARDED",
-    "X_IMFORWARDS",
-    "X_LOCKING",
-    "X_LOOKING",
-    "X_REAL_IP",
-
-    // Upper-case variants
-    "CACHE_INFO",
-    "CF_CONNECTING_IP",
-    "CLIENT_IP",
+    // CGI-style variants (underscores - note: these are converted to hyphens in HTTP)
     "COMING_FROM",
     "CONNECT_VIA_IP",
     "FORWARD_FOR",
-    "FORWARD-FOR",
-    "FORWARDED_FOR_IP",
-    "FORWARDED_FOR",
-    "FORWARDED-FOR-IP",
-    "FORWARDED-FOR",
     "PC_REMOTE_ADDR",
     "PRAGMA",
     "PROXY_AUTHORIZATION",
@@ -116,4 +101,8 @@ const headers: string[] = [
     "XROXY_CONNECTION",
     "ZCACHE_CONTROL",
 ];
+
+const headers: string[] = [...safeHeaders, ...advancedHeaders];
+
 export default headers;
+export { safeHeaders, advancedHeaders };

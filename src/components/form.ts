@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import headers from "../headers";
+import { safeHeaders, advancedHeaders } from "../headers";
 
 const validateIPv4 = (ip: string): boolean => {
     const ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
@@ -55,6 +55,66 @@ export class ProfileFormElement extends LitElement {
             font-size: 0.8rem;
             color: var(--color-primary-text);
             margin-bottom: 0.25rem;
+        }
+        .headers-container {
+            border: 1px solid #ddd;
+            background: var(--color-surface-mixed-300);
+            border-radius: 4px;
+            padding: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .headers-section {
+            margin-bottom: 1rem;
+        }
+        .headers-section:last-child {
+            margin-bottom: 0;
+        }
+        .headers-section-title {
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px solid var(--color-surface-mixed-400);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .headers-section-actions {
+            font-size: 0.75rem;
+            font-weight: normal;
+        }
+        .headers-section-actions button {
+            background: none;
+            border: none;
+            color: var(--color-primary-100);
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 0;
+            margin-left: 0.5rem;
+        }
+        .headers-section-actions button:hover {
+            color: var(--color-primary-200);
+        }
+        .headers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .header-checkbox {
+            display: flex;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+        .header-checkbox input {
+            margin-right: 0.5rem;
+            margin-bottom: 0;
+        }
+        .header-checkbox label {
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.85rem;
         }
         input + select,
         select + input,
@@ -179,13 +239,14 @@ export class ProfileFormElement extends LitElement {
                         <div class="form-row">
                             <label for="randomizeInterval">Randomization Interval</label>
                             <select .value="${this.randomizeInterval}" @change=${this._handleInput} id="randomizeInterval">
+                                <option value="1">Every request (~1 second)</option>
                                 <option value="5">Every 5 seconds</option>
                                 <option value="30">Every 30 seconds</option>
                                 <option value="60">Every 1 minute</option>
                                 <option value="300">Every 5 minutes</option>
                                 <option value="600">Every 10 minutes</option>
                             </select>
-                            <span class="help-text">How often to generate a new random IP address.</span>
+                            <span class="help-text">How often to generate a new random IP address. "Every request" changes IP approximately once per second.</span>
                         </div>
                         <div class="form-row">
                             <label>
@@ -196,12 +257,53 @@ export class ProfileFormElement extends LitElement {
                         </div>
                     ` : nothing}
                     <div class="form-row ${this._errors.headers ? "form-error" : ""}">
-                        <label for="headers">${chrome.i18n.getMessage("form_headers_label")}</label>
-                        <select @change=${this._handleInput} id="headers" class="${this._errors.headers ? "form-error" : ""}" multiple required>
-                            ${headers.map((header) => {
-                                return html`<option value="${header}" ?selected=${this.headers.includes(header)}>${header}</option>`
-                            })}
-                        </select>
+                        <label>${chrome.i18n.getMessage("form_headers_label")}</label>
+                        <div class="headers-container">
+                            <div class="headers-section">
+                                <div class="headers-section-title">
+                                    <span>Safe Headers (Recommended)</span>
+                                    <div class="headers-section-actions">
+                                        <button type="button" @click=${() => this._selectAllHeaders('safe', true)}>Select All</button>
+                                        <button type="button" @click=${() => this._selectAllHeaders('safe', false)}>Deselect All</button>
+                                    </div>
+                                </div>
+                                <div class="headers-grid">
+                                    ${safeHeaders.map((header) => html`
+                                        <div class="header-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                id="header-${header}"
+                                                .checked=${this.headers.includes(header)}
+                                                @change=${(e: Event) => this._handleHeaderCheckbox(header, (e.target as HTMLInputElement).checked)}
+                                            >
+                                            <label for="header-${header}">${header}</label>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                            <div class="headers-section">
+                                <div class="headers-section-title">
+                                    <span>Advanced Headers (May break sites)</span>
+                                    <div class="headers-section-actions">
+                                        <button type="button" @click=${() => this._selectAllHeaders('advanced', true)}>Select All</button>
+                                        <button type="button" @click=${() => this._selectAllHeaders('advanced', false)}>Deselect All</button>
+                                    </div>
+                                </div>
+                                <div class="headers-grid">
+                                    ${advancedHeaders.map((header) => html`
+                                        <div class="header-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                id="header-${header}"
+                                                .checked=${this.headers.includes(header)}
+                                                @change=${(e: Event) => this._handleHeaderCheckbox(header, (e.target as HTMLInputElement).checked)}
+                                            >
+                                            <label for="header-${header}">${header}</label>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                        </div>
                         ${this._errors.headers ? html`<span class="error-text">${this._errors.headers}</span>` : nothing }
                         <span class="help-text">${chrome.i18n.getMessage("form_headers_help")}</span>
                     </div>
@@ -229,11 +331,48 @@ export class ProfileFormElement extends LitElement {
             </section>
         `
     }
+    protected _handleHeaderCheckbox(header: string, checked: boolean) {
+        if (checked) {
+            // Add header if not already present
+            if (!this.headers.includes(header)) {
+                this.headers = [...this.headers, header];
+            }
+        } else {
+            // Remove header
+            this.headers = this.headers.filter(h => h !== header);
+        }
+
+        // Clear error if we have at least one header
+        if (this.headers.length > 0 && this._errors.headers) {
+            const errors = Object.assign({}, this._errors);
+            delete errors.headers;
+            this._errors = errors;
+        }
+    }
+
+    protected _selectAllHeaders(section: 'safe' | 'advanced', select: boolean) {
+        const headerList = section === 'safe' ? safeHeaders : advancedHeaders;
+
+        if (select) {
+            // Add all headers from this section
+            const newHeaders = new Set([...this.headers, ...headerList]);
+            this.headers = Array.from(newHeaders);
+        } else {
+            // Remove all headers from this section
+            this.headers = this.headers.filter(h => !headerList.includes(h));
+        }
+
+        // Clear error if we have at least one header
+        if (this.headers.length > 0 && this._errors.headers) {
+            const errors = Object.assign({}, this._errors);
+            delete errors.headers;
+            this._errors = errors;
+        }
+    }
+
     protected _handleInput(event: InputEvent) {
         let { id , value , required} = event.target as HTMLInputElement;
-        if(id === "headers") {
-            this.headers = Array.from((event.target as HTMLSelectElement).selectedOptions, option => option.value);
-        } else if(["name", "value", "domains"].includes(id)) {
+        if(["name", "value", "domains"].includes(id)) {
             this[id] = value.trim();
             // Validate IP address when value changes
             if(id === "value" && value.trim() && !this.randomizeIp) {

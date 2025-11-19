@@ -161,7 +161,9 @@ export class ProfileElement extends LitElement {
     }
 
     protected _formatInterval(seconds: number): string {
-        if (seconds < 60) {
+        if (seconds === 1) {
+            return "per request";
+        } else if (seconds < 60) {
             return `${seconds}s`;
         } else if (seconds < 3600) {
             const minutes = Math.floor(seconds / 60);
