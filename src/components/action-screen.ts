@@ -6,6 +6,11 @@ import "./button";
 @customElement('ext-action-screen')
 export class ActionScreenElement extends LitElement {
     static override styles = css`
+        :host {
+            display: block;
+            max-width: 300px;
+            overflow: hidden;
+        }
         * {
             box-sizing: border-box;
         }
@@ -25,12 +30,15 @@ export class ActionScreenElement extends LitElement {
         }
         p {
             text-align: center;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
         p.disabled {
             color: var(--color-error);
             font-size: 0.85rem;
             font-weight: bold;
             margin-bottom: 0;
+            text-align: left;
         }
         ext-button {
             display: block;
